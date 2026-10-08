@@ -53,6 +53,27 @@ class GuiTests(unittest.TestCase):
                 finally:
                     dialog.close()
 
+    def test_existing_config_defaults_to_typing_even_with_saved_paste_shortcut(self):
+        dialog = gui.SettingsDialog({"paste_shortcut": "ctrl+shift+v"})
+        try:
+            self.assertEqual(dialog.values()["insertion_mode"], "type")
+            self.assertEqual(dialog.values()["typing_layout"], "auto")
+            self.assertTrue(dialog.typing_layout_edit.isEnabled())
+            self.assertFalse(dialog.paste_box.isEnabled())
+            dialog.insertion_box.setCurrentIndex(dialog.insertion_box.findData("paste"))
+            self.assertFalse(dialog.typing_layout_edit.isEnabled())
+            self.assertTrue(dialog.paste_box.isEnabled())
+            self.assertEqual(dialog.values()["insertion_mode"], "paste")
+        finally:
+            dialog.close()
+
+    def test_typing_layout_round_trips_through_settings(self):
+        dialog = gui.SettingsDialog(dict(core.DEFAULT_CONFIG, typing_layout="de(nodeadkeys)"))
+        try:
+            self.assertEqual(dialog.values()["typing_layout"], "de(nodeadkeys)")
+        finally:
+            dialog.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,10 @@
 # Wayland notes — the four-bug debug story
 
-**Current behavior:** Wayland text insertion now uses `wl-copy` plus a `ydotool`
-paste shortcut to preserve Unicode text and non-US keyboard layouts. The GUI
-offers Ctrl+V or Ctrl+Shift+V for terminal use; the transcription stays on the
-clipboard. X11 uses `xdotool type`. The `ydotool type` examples below describe
+**Current behavior:** Wayland text insertion defaults to character-by-character
+typing: libxkbcommon maps text to layout-aware `ydotool` key events. The clipboard
+is unchanged. Settings offer a layout override and optional Clipboard paste
+(Ctrl+V or Ctrl+Shift+V); only that mode puts text on the clipboard. X11 uses
+`xdotool type`. The `ydotool type` examples below describe
 the original debugging session, not the current text insertion path. On
 Arch/CachyOS, ydotool 1.x needs `systemctl --user enable --now ydotool.service`.
 

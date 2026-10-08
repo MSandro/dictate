@@ -30,11 +30,12 @@ if [[ "$DISTRO" == arch ]]; then
     # Do not refresh databases here: pacman -Sy would risk a partial upgrade.
     sudo pacman -S --needed --noconfirm \
         python python-pip python-evdev xdotool ydotool wl-clipboard libnotify \
-        xcb-util-cursor portaudio libsndfile desktop-file-utils
+        xcb-util-cursor libxkbcommon-x11 xkeyboard-config portaudio libsndfile desktop-file-utils
 else
     sudo apt-get update -qq
     sudo apt-get install -y \
-        xdotool ydotool wl-clipboard libnotify-bin python3-pip libxcb-cursor0 python3-evdev libportaudio2
+        xdotool ydotool wl-clipboard libnotify-bin python3-pip libxcb-cursor0 \
+        libxkbcommon-x11-0 xkb-data python3-evdev libportaudio2
 fi
 
 echo

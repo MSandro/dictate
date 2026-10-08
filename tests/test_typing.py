@@ -28,7 +28,7 @@ class TypingTests(unittest.TestCase):
         ):
             with self.subTest(shortcut=shortcut), patch.object(core.subprocess, "run") as run:
                 run.return_value = subprocess.CompletedProcess([], 0, stdout=MODERN_HELP)
-                core.type_text(TEXT, shortcut)
+                core.type_text(TEXT, shortcut, insertion_mode="paste")
                 self.assertEqual(run.call_count, 3)
                 copy = run.call_args_list[1]
                 self.assertEqual(copy.args[0], ["wl-copy", "--type", "text/plain;charset=utf-8"])
@@ -41,7 +41,7 @@ class TypingTests(unittest.TestCase):
     def test_legacy_ydotool_uses_symbolic_shortcut(self):
         with patch.object(core.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, stdout=LEGACY_HELP)
-            core.type_text(TEXT, "ctrl+shift+v")
+            core.type_text(TEXT, "ctrl+shift+v", insertion_mode="paste")
             self.assertEqual(run.call_args.args[0], ["ydotool", "key", "--key-delay", "20", "ctrl+shift+v"])
 
     def test_missing_daemon_does_not_change_clipboard_or_type_raw_text(self):
@@ -63,7 +63,7 @@ class TypingTests(unittest.TestCase):
                       subprocess.TimeoutExpired(["wl-copy"], 10)):
             with self.subTest(error=type(error).__name__), patch.object(core.subprocess, "run") as run:
                 run.side_effect = [subprocess.CompletedProcess([], 0, stdout=MODERN_HELP), error]
-                core.type_text(TEXT)
+                core.type_text(TEXT, insertion_mode="paste")
                 self.assertEqual(run.call_count, 2)
                 self.notify.assert_called()
                 self.notify.reset_mock()
@@ -73,13 +73,13 @@ class TypingTests(unittest.TestCase):
             run.side_effect = [subprocess.CompletedProcess([], 0, stdout=MODERN_HELP),
                                subprocess.CompletedProcess([], 0),
                                subprocess.CalledProcessError(2, ["ydotool", "key"])]
-            core.type_text(TEXT)
+            core.type_text(TEXT, insertion_mode="paste")
             self.assertEqual(run.call_count, 3)
             self.assertIn("ydotool exit 2", self.notify.call_args.args[0])
 
     def test_invalid_shortcut_does_not_touch_clipboard(self):
         with patch.object(core.subprocess, "run") as run:
-            core.type_text(TEXT, "invalid")
+            core.type_text(TEXT, "invalid", insertion_mode="paste")
             run.assert_not_called()
             self.notify.assert_called_once()
 
@@ -98,9 +98,45 @@ class TypingTests(unittest.TestCase):
             self.assertEqual(self.notify.call_args.args[0], "Typing timed out")
 
     def test_wayland_display_detects_session_without_session_type(self):
-        with patch.dict(os.environ, {"XDG_SESSION_TYPE": ""}), patch.object(core, "_paste_wayland") as paste:
+        with patch.dict(os.environ, {"XDG_SESSION_TYPE": ""}), patch.object(core, "_type_wayland") as typing:
             core.type_text(TEXT)
-            paste.assert_called_once_with(TEXT, "ctrl+v")
+            typing.assert_called_once_with(TEXT, "auto")
+
+    def test_default_types_characters_with_no_clipboard_or_paste_shortcut(self):
+        with patch.object(core.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, stdout=MODERN_HELP)
+            core.type_text("yzäöüß?", typing_layout="at")
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_args.args[0], [
+                "ydotool", "key", "--key-delay", "2", "--",
+                "44:1", "44:0", "21:1", "21:0", "40:1", "40:0",
+                "39:1", "39:0", "26:1", "26:0", "12:1", "12:0",
+                "42:1", "12:1", "12:0", "42:0",
+            ])
+            self.notify.assert_not_called()
+
+    def test_default_does_not_paste_unsupported_characters(self):
+        with patch.object(core.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, stdout=MODERN_HELP)
+            core.type_text("Hello 😃", typing_layout="at")
+            self.assertEqual(run.call_count, 1)
+            self.assertIn("unavailable in this keyboard layout", self.notify.call_args.args[0])
+
+    def test_legacy_types_layout_aware_physical_key_names(self):
+        with patch.object(core.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, stdout=LEGACY_HELP)
+            core.type_text("yzäÜ@", typing_layout="at")
+            self.assertEqual(run.call_args.args[0], ["ydotool", "key", "--key-delay", "2", "--",
+                                                    "z", "y", "'", "Shift+[", "Alt_R+q"])
+
+    def test_long_dictation_is_sent_in_complete_bounded_key_sequences(self):
+        with patch.object(core.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, stdout=MODERN_HELP)
+            core.type_text("Ü" * 300, typing_layout="at")
+            self.assertEqual(run.call_count, 4)
+            for call in run.call_args_list[1:]:
+                self.assertEqual(call.args[0][-4:], ["42:1", "26:1", "26:0", "42:0"])
+                self.assertLessEqual(len(call.args[0]), 6 + 128 * 4)
 
     def test_windows_and_macos_keep_native_typing(self):
         for platform in ("win32", "darwin"):
