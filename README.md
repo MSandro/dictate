@@ -28,6 +28,11 @@ Hold a hotkey, speak, release — the transcribed text is typed wherever your cu
 
 ## Install
 
+The installer supports **Debian/Ubuntu** and **Arch Linux**, including derivatives
+such as **CachyOS** (detected through `/etc/os-release`). On Arch, update your
+system with `sudo pacman -Syu` before installing; the installer uses the existing
+package databases without refreshing them separately.
+
 ```bash
 git clone https://github.com/winidi/dictate.git
 cd dictate
@@ -36,10 +41,21 @@ cd dictate
 
 The installer adds:
 
-- system packages: `xdotool`, `ydotool`, `python3-evdev`, `libnotify-bin`, `python3-pip`, `libxcb-cursor0`, `libportaudio2`
+- Debian/Ubuntu system packages: `xdotool`, `ydotool`, `python3-evdev`, `libnotify-bin`, `python3-pip`, `libxcb-cursor0`, `libportaudio2`
+- Arch/CachyOS system packages: `python`, `python-pip`, `python-evdev`, `xdotool`, `ydotool`, `libnotify`, `xcb-util-cursor`, `portaudio`, `libsndfile`, `desktop-file-utils`
 - Python packages: `PyQt6`, `sounddevice`, `pynput`, `requests`, `numpy`, `sherpa-onnx`, `soundfile`, `huggingface_hub`
 - membership in group `input` (needed for evdev on Wayland)
 - a desktop entry so **Dictate** shows up in your app menu
+
+On Arch/CachyOS, Python packages are installed in `.venv/` inside the checkout,
+with access to system packages for pacman's `python-evdev`. The desktop entry
+uses that environment automatically; to launch from a terminal, use
+`.venv/bin/python gui.py` (or `.venv/bin/python dictate.py` for the X11 CLI).
+The installer also enables the packaged `ydotool.service` user service for
+Wayland typing. If it cannot connect to your user systemd session, run
+`systemctl --user enable --now ydotool.service` after logging in.
+After an Arch upgrade changes Python's minor version, recreate `.venv/` and
+rerun `./install.sh`.
 
 The Parakeet ONNX model itself (~640 MB) is *not* downloaded by `install.sh` — the download is triggered on demand from Settings when you first pick the local backend, so users who only want cloud transcription don't pay the disk cost.
 
@@ -47,7 +63,9 @@ If the installer added you to the `input` group you must log out and back in for
 
 ## First run
 
-Launch **Dictate** from the app menu (or `python3 gui.py`). On first launch you will be prompted to pick a provider and paste an API key.
+Launch **Dictate** from the app menu (or `python3 gui.py` on Debian/Ubuntu,
+`.venv/bin/python gui.py` on Arch/CachyOS). On first launch you will be prompted
+to pick a provider and paste an API key.
 
 ## Usage
 
@@ -99,7 +117,8 @@ If a hotkey silently does nothing after install, the two things to check are:
 
 **Text is transcribed (visible in the "Last transcription" pane) but nothing appears in your target window**
 
-- `ydotool` is missing or `/dev/uinput` is not writable. Reinstall with `sudo apt install ydotool` and confirm `python3 -c 'import os; os.open("/dev/uinput", os.O_WRONLY)'` succeeds. On systemd systems membership in `input` should be enough
+- `ydotool` is missing or `/dev/uinput` is not writable. Reinstall with `sudo apt install ydotool` on Debian/Ubuntu or `sudo pacman -S ydotool` on Arch/CachyOS and confirm `python3 -c 'import os; os.open("/dev/uinput", os.O_WRONLY)'` succeeds. Log out and back in if you were just added to `input`.
+- On Arch/CachyOS, `ydotool` also needs its daemon. Check `systemctl --user status ydotool.service` and start it with `systemctl --user enable --now ydotool.service`. If it fails, inspect `journalctl --user -u ydotool.service -b`; `/dev/uinput` must be writable by your current session. See the [packaged service and udev rule](https://archlinux.org/packages/extra/x86_64/ydotool/files/) and [ydotool's daemon requirement](https://github.com/ReimuNotMoe/ydotool#why-a-background-service-is-needed).
 
 **GUI freezes for a few seconds when releasing the hotkey**
 
