@@ -79,7 +79,7 @@ class InstallerTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 packages = next(call for call in calls if call[:2] == ["sudo", "pacman"])
                 self.assertEqual(packages[2:5], ["-S", "--needed", "--noconfirm"])
-                for package in ("python-evdev", "portaudio", "libsndfile", "xcb-util-cursor"):
+                for package in ("python-evdev", "portaudio", "libsndfile", "xcb-util-cursor", "wl-clipboard"):
                     self.assertIn(package, packages)
                 self.assertFalse(any("apt-get" in call for call in calls))
                 self.assertIn(["python3", "-m", "venv", "--system-site-packages", str(root / ".venv")], calls)
@@ -98,6 +98,8 @@ class InstallerTests(unittest.TestCase):
                 result, calls, entry, root = self.run_installer(release)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(["sudo", "apt-get", "update", "-qq"], calls)
+                packages = next(call for call in calls if call[:3] == ["sudo", "apt-get", "install"])
+                self.assertIn("wl-clipboard", packages)
                 pip = next(call for call in calls if call[1:4] == ["-m", "pip", "install"])
                 self.assertEqual(pip[:6], ["python3", "-m", "pip", "install", "--user", "--break-system-packages"])
                 self.assertFalse(any("pacman" in call or "systemctl" in call for call in calls))

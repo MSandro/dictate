@@ -111,6 +111,18 @@ class SettingsDialog(QDialog):
         self.key_box.setCurrentIndex(max(i, 0))
         self.form.addRow("Hotkey:", self.key_box)
 
+        self.paste_box = QComboBox()
+        self.paste_box.addItem("Ctrl+V (most apps)", "ctrl+v")
+        self.paste_box.addItem("Ctrl+Shift+V (terminals)", "ctrl+shift+v")
+        i = self.paste_box.findData(self.cfg.get("paste_shortcut", "ctrl+v"))
+        self.paste_box.setCurrentIndex(max(i, 0))
+        self.paste_box.setToolTip(
+            "On Wayland, Dictate copies the transcription to the clipboard and\n"
+            "pastes it using this shortcut, preserving umlauts and other Unicode\n"
+            "characters. The transcription remains on the clipboard. X11 types directly."
+        )
+        self.form.addRow("Wayland paste:", self.paste_box)
+
         self.model_box = QComboBox()
         self.form.addRow("Model:", self.model_box)
 
@@ -160,7 +172,7 @@ class SettingsDialog(QDialog):
 
         self.hint = QLabel()
         self.hint.setOpenExternalLinks(True)
-        self.hint.setStyleSheet("color: #777; padding: 6px 0;")
+        self.hint.setStyleSheet("padding: 6px 0;")
         layout.addWidget(self.hint)
 
         layout.addWidget(buttons)
@@ -300,6 +312,7 @@ class SettingsDialog(QDialog):
             "openai_api_key":        self._keys.get("openai", ""),
             "mode":                  self.mode_box.currentData(),
             "key":                   self.key_box.currentData(),
+            "paste_shortcut":        self.paste_box.currentData(),
             "model":                 self.model_box.currentData(),
             "threshold":             float(self.threshold_box.value()),
             "local_stt_num_threads": int(self.local_threads_box.value()),
@@ -381,7 +394,7 @@ class MainWindow(QMainWindow):
         v.addWidget(self.status_label)
 
         self.info_label = QLabel()
-        self.info_label.setStyleSheet("color: #666; padding: 2px 0;")
+        self.info_label.setStyleSheet("padding: 2px 0;")
         v.addWidget(self.info_label)
 
         v.addWidget(QLabel("Last transcription:"))
@@ -389,7 +402,7 @@ class MainWindow(QMainWindow):
         self.last.setReadOnly(True)
         self.last.setMaximumHeight(110)
         self.last.setStyleSheet(
-            "QTextEdit { background: #fafafa; border: 1px solid #ddd; border-radius: 6px; padding: 6px; }"
+            "QTextEdit { padding: 6px; }"
         )
         v.addWidget(self.last)
 
@@ -612,7 +625,9 @@ class MainWindow(QMainWindow):
 
     def on_transcribed(self, text):
         if text:
-            threading.Thread(target=core.type_text, args=(text,), daemon=True).start()
+            threading.Thread(target=core.type_text,
+                             args=(text, self.cfg.get("paste_shortcut", "ctrl+v")),
+                             daemon=True).start()
             self.last.setPlainText(text)
         self.set_status("ready", "Ready")
 

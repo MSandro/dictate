@@ -16,7 +16,7 @@ Hold a hotkey, speak, release — the transcribed text is typed wherever your cu
   - **Local** offline — `parakeet-primeline` (German fine-tune of `nvidia/parakeet-tdt-0.6b-v3`, int8 ONNX via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)). CPU-only, ~50 ms decode for 2 s audio at 4 threads. No network, no API key.
 - Optional minimum-hold threshold to ignore accidental modifier presses
 - API keys stored locally in `~/.config/dictate/config.json` (mode 600)
-- **Wayland-compatible**: uses `evdev` for key capture and `ydotool` for typing, falls back to `pynput`/`xdotool` on X11
+- **Wayland-compatible**: uses `evdev` for key capture and clipboard paste (`wl-copy` + `ydotool`) for layout-safe Unicode text, falls back to `pynput`/`xdotool` on X11
 - **Windows / macOS**: `pip install PyQt6 sounddevice pynput requests numpy` and run `python gui.py`; hotkeys and typing go through `pynput`. Pair it with the Yorik provider and the machine needs no model.
 
 ## Requirements
@@ -41,8 +41,8 @@ cd dictate
 
 The installer adds:
 
-- Debian/Ubuntu system packages: `xdotool`, `ydotool`, `python3-evdev`, `libnotify-bin`, `python3-pip`, `libxcb-cursor0`, `libportaudio2`
-- Arch/CachyOS system packages: `python`, `python-pip`, `python-evdev`, `xdotool`, `ydotool`, `libnotify`, `xcb-util-cursor`, `portaudio`, `libsndfile`, `desktop-file-utils`
+- Debian/Ubuntu system packages: `xdotool`, `ydotool`, `wl-clipboard`, `python3-evdev`, `libnotify-bin`, `python3-pip`, `libxcb-cursor0`, `libportaudio2`
+- Arch/CachyOS system packages: `python`, `python-pip`, `python-evdev`, `xdotool`, `ydotool`, `wl-clipboard`, `libnotify`, `xcb-util-cursor`, `portaudio`, `libsndfile`, `desktop-file-utils`
 - Python packages: `PyQt6`, `sounddevice`, `pynput`, `requests`, `numpy`, `sherpa-onnx`, `soundfile`, `huggingface_hub`
 - membership in group `input` (needed for evdev on Wayland)
 - a desktop entry so **Dictate** shows up in your app menu
@@ -76,6 +76,7 @@ In **Settings** you can change:
 - **Provider** — Groq, OpenAI, or Local (Parakeet DE)
 - **Mode** — push-to-talk (hold) or toggle (tap to start / tap to stop)
 - **Hotkey** — F1–F12, modifier keys (Ctrl / Alt / Shift / Super), or one of the Logitech-style mouse side buttons (`MOUSE BACK`, `MOUSE FORWARD`, `MOUSE SIDE`, `MOUSE EXTRA`, `MOUSE TASK`). Mouse buttons only work with the evdev backend (i.e. `input`-group setup complete).
+- **Wayland paste** — `Ctrl+V` for most apps, or `Ctrl+Shift+V` for terminals that use that paste shortcut. Each Wayland dictation replaces the clipboard contents and leaves the transcription there for manual pasting too. X11 continues to type directly.
 - **Model** — provider-specific list (cloud only)
 - **CPU threads** (Local only) — sherpa-onnx worker threads. 4 is the sweet spot on typical CPUs; more brings little benefit and starves the rest of the system.
 - **Min hold to send** — recordings shorter than this duration are discarded. Recommended ~2.0s when bound to Ctrl / Alt / Shift so regular keyboard shortcuts do not trigger recording.
@@ -90,7 +91,16 @@ Attribution (CC-BY-4.0): [primeline](https://huggingface.co/flozen1981/parakeet-
 
 ## Wayland notes
 
-On Wayland (GNOME Mutter in particular) the compositor does not forward global key events to XWayland, so `pynput`'s X-based listener sees nothing. Dictate works around this by reading `/dev/input/event*` directly via `evdev`. The `install.sh` script sets this up. Typing likewise uses `ydotool` (via `/dev/uinput`) because `xdotool` cannot type into native Wayland windows.
+On Wayland (GNOME Mutter in particular) the compositor does not forward global key events to XWayland, so `pynput`'s X-based listener sees nothing. Dictate works around this by reading `/dev/input/event*` directly via `evdev`. The `install.sh` script sets this up.
+
+Text insertion uses `wl-copy` to put the exact UTF-8 transcription on the
+clipboard, then `ydotool` (via `/dev/uinput`) sends the paste shortcut. This
+preserves German umlauts, `ß`, punctuation, and other Unicode characters instead
+of sending the US keycodes used by `ydotool type`. It works with native Wayland
+windows, including KDE Plasma. The latest dictation stays on the clipboard;
+clipboard managers may also retain it in their history. Set **Wayland paste**
+to **Ctrl+Shift+V** when dictating into a terminal that requires it. The target
+application must accept the selected paste shortcut.
 
 If a hotkey silently does nothing after install, the two things to check are:
 
@@ -117,6 +127,7 @@ If a hotkey silently does nothing after install, the two things to check are:
 
 **Text is transcribed (visible in the "Last transcription" pane) but nothing appears in your target window**
 
+- On Wayland, rerun `./install.sh` to install `wl-clipboard`, and check **Settings → Wayland paste** matches the target application's paste shortcut. If the text is on the clipboard but is not inserted, try pasting manually, then check the ydotool daemon and input access below.
 - `ydotool` is missing or `/dev/uinput` is not writable. Reinstall with `sudo apt install ydotool` on Debian/Ubuntu or `sudo pacman -S ydotool` on Arch/CachyOS and confirm `python3 -c 'import os; os.open("/dev/uinput", os.O_WRONLY)'` succeeds. Log out and back in if you were just added to `input`.
 - On Arch/CachyOS, `ydotool` also needs its daemon. Check `systemctl --user status ydotool.service` and start it with `systemctl --user enable --now ydotool.service`. If it fails, inspect `journalctl --user -u ydotool.service -b`; `/dev/uinput` must be writable by your current session. See the [packaged service and udev rule](https://archlinux.org/packages/extra/x86_64/ydotool/files/) and [ydotool's daemon requirement](https://github.com/ReimuNotMoe/ydotool#why-a-background-service-is-needed).
 
@@ -150,6 +161,7 @@ The CLI variant only works on X11 for the reasons described above. Use `gui.py` 
   "key": "f9",
   "model": "whisper-large-v3-turbo",
   "threshold": 0.0,
+  "paste_shortcut": "ctrl+v",
   "local_stt_num_threads": 4
 }
 ```

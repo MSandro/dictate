@@ -29,12 +29,12 @@ echo "[1/4] Installing system packages (needs sudo)..."
 if [[ "$DISTRO" == arch ]]; then
     # Do not refresh databases here: pacman -Sy would risk a partial upgrade.
     sudo pacman -S --needed --noconfirm \
-        python python-pip python-evdev xdotool ydotool libnotify \
+        python python-pip python-evdev xdotool ydotool wl-clipboard libnotify \
         xcb-util-cursor portaudio libsndfile desktop-file-utils
 else
     sudo apt-get update -qq
     sudo apt-get install -y \
-        xdotool ydotool libnotify-bin python3-pip libxcb-cursor0 python3-evdev libportaudio2
+        xdotool ydotool wl-clipboard libnotify-bin python3-pip libxcb-cursor0 python3-evdev libportaudio2
 fi
 
 echo
